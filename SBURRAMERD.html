@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carica e Cerca nel PDF</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #pdf-render {
+            width: 100%;
+            height: 600px;
+            border: 1px solid black;
+            overflow: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Carica e Cerca nel PDF</h1>
+    <input type="file" id="file-input" accept="application/pdf">
+    <br><br>
+    <input type="text" id="search-input" placeholder="Cerca nel PDF">
+    <button id="search-button">Cerca</button>
+    <br><br>
+    <div id="pdf-render"></div>
+
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+
+    <script>
+        const fileInput = document.getElementById('file-input');
+        const searchButton = document.getElementById('search-button');
+        const searchInput = document.getElementById('search-input');
+        const pdfRender = document.getElementById('pdf-render');
+        let pdfDoc = null;
+        let currentPage = 1;
+        
+        // Carica il PDF
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file.type === 'application/pdf') {
+                const fileReader = new FileReader();
+                fileReader.onload = function() {
+                    const pdfData = new Uint8Array(this.result);
+                    pdfjsLib.getDocument({ data: pdfData }).promise.then((pdf) => {
+                        pdfDoc = pdf;
+                        renderPage(currentPage);
+                    });
+                };
+                fileReader.readAsArrayBuffer(file);
+            } else {
+                alert("Carica un file PDF valido.");
+            }
+        });
+
+        // Funzione per renderizzare una pagina del PDF
+        function renderPage(pageNum) {
+            pdfDoc.getPage(pageNum).then((page) => {
+                const scale = 1.5;
+                const viewport = page.getViewport({ scale });
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                pdfRender.innerHTML = '';
+                pdfRender.appendChild(canvas);
+
+                page.render({
+                    canvasContext: context,
+                    viewport: viewport
+                });
+            });
+        }
+ // Cerca nel PDF
+      let currentSearchPage = 1;  // Mantiene traccia della pagina corrente per la ricerca
+
+searchButton.addEventListener('click', () => {
+    const searchTerm = searchInput.value.toLowerCase();
+    let pageFound = false; // Variabile per interrompere la ricerca
+    if (pdfDoc) {
+        // Cicla tutte le pagine del PDF partendo dalla pagina corrente
+        for (let i = currentSearchPage; i <= pdfDoc.numPages; i++) {
+            if (pageFound) break;  // Se la pagina è già stata trovata, interrompi il ciclo
+
+            pdfDoc.getPage(i).then(page => {
+                page.getTextContent().then(textContent => {
+                    let text = textContent.items.map(item => item.str).join(' ');
+
+                    // Se trovi il termine di ricerca
+                    if (text.toLowerCase().includes(searchTerm) && !pageFound) {
+                        pageFound = true; // Setta la variabile a true per fermare la ricerca
+                        alert(`Trovato alla pagina ${i}`);
+
+                        // Renderizza la pagina trovata
+                        renderPage(i);
+
+                        // Aggiorna la pagina corrente per continuare la ricerca dalla pagina successiva
+                        currentSearchPage = i + 1;
+
+                        // Se siamo all'ultima pagina e troviamo il termine, ricomincia dalla pagina 1
+                        if (currentSearchPage > pdfDoc.numPages) {
+                            currentSearchPage = 1;
+                        }
+                    }
+                });
+            });
+        }
+
+        // Se non viene trovato nulla
+        setTimeout(() => {
+            if (!pageFound) {
+                alert("Termine non trovato nel PDF.");
+                // Ricomincia la ricerca dalla pagina 1 per il prossimo clic
+                currentSearchPage = 1;
+            }
+        }, 1000);
+    } else {
+        alert("Carica prima un file PDF.");
+    }
+});
+    </script>
+</body>
+</html>
